@@ -24,6 +24,7 @@ pub mod error;
 pub mod highlight;
 pub mod hint;
 pub mod history;
+pub mod inputrc;
 mod keymap;
 mod keys;
 mod kill_ring;

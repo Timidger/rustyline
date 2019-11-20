@@ -1,4 +1,5 @@
 //! Contains error type for handling I/O and Errno errors
+use crate::inputrc::InputrcParsingError;
 #[cfg(unix)]
 use nix;
 #[cfg(windows)]
@@ -20,6 +21,8 @@ pub enum ReadlineError {
     Eof,
     /// Ctrl-C
     Interrupted,
+    /// Error on parsing an inputrc file
+    Inputrc(InputrcParsingError),
     /// Chars Error
     #[cfg(unix)]
     Utf8Error,
@@ -38,6 +41,7 @@ impl fmt::Display for ReadlineError {
             ReadlineError::Io(ref err) => err.fmt(f),
             ReadlineError::Eof => write!(f, "EOF"),
             ReadlineError::Interrupted => write!(f, "Interrupted"),
+            ReadlineError::Inputrc(ref parsing_error) => unimplemented!(),
             #[cfg(unix)]
             ReadlineError::Utf8Error => write!(f, "invalid utf-8: corrupt contents"),
             #[cfg(unix)]
@@ -56,6 +60,7 @@ impl error::Error for ReadlineError {
             ReadlineError::Io(ref err) => err.description(),
             ReadlineError::Eof => "EOF",
             ReadlineError::Interrupted => "Interrupted",
+            ReadlineError::Inputrc(_) => "Parsing error",
             #[cfg(unix)]
             ReadlineError::Utf8Error => "invalid utf-8: corrupt contents",
             #[cfg(unix)]
