@@ -5,29 +5,29 @@ use std::default::Default;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Config {
     /// Maximum number of entries in History.
-    max_history_size: usize, // history_max_entries
-    history_duplicates: HistoryDuplicates,
-    history_ignore_space: bool,
-    completion_type: CompletionType,
+    pub(crate) max_history_size: usize, // history_max_entries
+    pub(crate) history_duplicates: HistoryDuplicates,
+    pub(crate) history_ignore_space: bool,
+    pub(crate) completion_type: CompletionType,
     /// When listing completion alternatives, only display
     /// one screen of possibilities at a time.
-    completion_prompt_limit: usize,
+    pub(crate) completion_prompt_limit: usize,
     /// Duration (milliseconds) Rustyline will wait for a character when
     /// reading an ambiguous key sequence.
-    keyseq_timeout: i32,
+    pub(crate) keyseq_timeout: i32,
     /// Emacs or Vi mode
-    edit_mode: EditMode,
+    pub(crate) edit_mode: EditMode,
     /// If true, each nonblank line returned by `readline` will be
     /// automatically added to the history.
-    auto_add_history: bool,
+    pub(crate) auto_add_history: bool,
     /// Beep or Flash or nothing
-    bell_style: BellStyle,
+    pub(crate) bell_style: BellStyle,
     /// if colors should be enabled.
-    color_mode: ColorMode,
+    pub(crate) color_mode: ColorMode,
     /// Whether to use stdout or stderr
-    output_stream: OutputStreamType,
+    pub(crate) output_stream: OutputStreamType,
     /// Horizontal space taken by a tab.
-    tab_stop: usize,
+    pub(crate) tab_stop: usize,
 }
 
 impl Config {

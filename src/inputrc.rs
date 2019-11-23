@@ -1,5 +1,7 @@
 //! Handles parsing the configuration file
 
+use std::collections::HashMap;
+use std::default::Default;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::num::NonZeroUsize;
@@ -11,13 +13,14 @@ use crate::error::ReadlineError;
 
 type ParserResult<T> = Result<T, InputrcParsingError>;
 
-pub fn parse_config<P: AsRef<Path>>(config_path: P) -> crate::Result<config::Config> {
+pub fn parse_config<P: AsRef<Path>, H: crate::Helper>(
+    config_path: P,
+) -> crate::Result<crate::Editor<H>> {
     let mut parser = Parser {
         state: ParserState::Toplevel,
-        builder: config::Config::builder(),
         statements: vec![],
     };
-    let mut config_file = BufReader::new(File::open(config_path)?);
+    let config_file = BufReader::new(File::open(config_path)?);
 
     parser.parse(config_file)?;
     Ok(parser.execute()?)
@@ -44,7 +47,7 @@ impl From<InputrcParsingError> for ReadlineError {
 }
 
 /// State machine for the inputrc parser.
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 enum ParserState {
     /// Not in a conditional, just append the line to the main body.
     Toplevel,
@@ -56,7 +59,13 @@ enum ParserState {
     },
 }
 
-#[derive(Debug, Clone)]
+impl Default for ParserState {
+    fn default() -> ParserState {
+        ParserState::Toplevel
+    }
+}
+
+#[derive(Eq, PartialEq, Debug, Clone)]
 enum Statement {
     SetVariable {
         variable: String,
@@ -69,13 +78,13 @@ enum Statement {
     Conditional(Conditional),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 struct Conditional {
     if_: (Condition, Vec<Statement>),
     else_: Option<Vec<Statement>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 enum Condition {
     Mode(config::EditMode),
     Term(String),
@@ -92,7 +101,7 @@ enum Condition {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 enum EqualityOp {
     Equals,
     NotEquals,
@@ -110,7 +119,7 @@ impl FromStr for EqualityOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 enum ComparisonOp {
     Equals,
     NotEquals,
@@ -136,11 +145,18 @@ impl FromStr for ComparisonOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 struct Parser {
     state: ParserState,
-    builder: config::Builder,
     statements: Vec<Statement>,
+}
+
+impl Eq for Parser {}
+
+impl PartialEq for Parser {
+    fn eq(&self, other: &Parser) -> bool {
+        self.state == other.state && self.statements == other.statements
+    }
 }
 
 impl Parser {
@@ -325,9 +341,125 @@ impl Parser {
         }
     }
 
-    fn execute(self) -> ParserResult<config::Config> {
+    fn execute<H: crate::Helper>(mut self) -> ParserResult<crate::Editor<H>> {
         if let ParserState::Conditional { .. } = self.state {
             return Err(InputrcParsingError::MissingEndIf);
+        }
+        let mut config = crate::Config::default();
+        self.statements.reverse();
+        let mut environment = HashMap::new();
+        while let Some(statement) = self.statements.pop() {
+            match statement {
+                Statement::SetVariable { variable, value } => {
+                    environment.insert(variable.clone(), value.unwrap_or_else(String::new));
+                    match variable.as_str() {
+                        "bell-style" => unimplemented!(),
+                        "bind-tty-special-chars" => unimplemented!(),
+                        "blink-matching-paren" => unimplemented!(),
+                        "colored-completion-prefix" => unimplemented!(),
+                        "colored-stats" => unimplemented!(),
+                        "comment-begin" => unimplemented!(),
+                        "completion-display-width" => unimplemented!(),
+                        "completion-ignore-case" => unimplemented!(),
+                        "completion-map-case" => unimplemented!(),
+                        "completion-prefix-display-length" => unimplemented!(),
+                        "completion-query-items" => unimplemented!(),
+                        "convert-meta" => unimplemented!(),
+                        "display-completion" => unimplemented!(),
+                        "echo-control-characters" => unimplemented!(),
+                        "editing-mode" => unimplemented!(),
+                        "emacs-mode-string" => unimplemented!(),
+                        "enable-bracketed-paste" => unimplemented!(),
+                        "enable-keypad" => unimplemented!(),
+                        "expand-tilde" => unimplemented!(),
+                        "history-preserve-point" => unimplemented!(),
+                        "history-size" => unimplemented!(),
+                        "horizontal-scroll-mode" => unimplemented!(),
+                        "input-meta" => unimplemented!(),
+                        "isearch-terminators" => unimplemented!(),
+                        "keymap" => unimplemented!(),
+                        "keyseq-timeout" => unimplemented!(),
+                        "mark-directories" => unimplemented!(),
+                        "mark-modified-lines" => unimplemented!(),
+                        "mark-symlinked-directories" => unimplemented!(),
+                        "match-hidden-files" => unimplemented!(),
+                        "menu-complete-display-prefix" => unimplemented!(),
+                        "output-meta" => unimplemented!(),
+                        "page-completions" => unimplemented!(),
+                        "print-completions-horizontally" => unimplemented!(),
+                        "revert-all-at-newline" => unimplemented!(),
+                        "show-all-if-ambiguous" => unimplemented!(),
+                        "show-all-if-unmodified" => unimplemented!(),
+                        "show-mode-in-prompt" => unimplemented!(),
+                        "skip-completed-text" => unimplemented!(),
+                        "vi-cmd-mode-string" => unimplemented!(),
+                        "vi-ins-mode-string" => unimplemented!(),
+                        "visible-stats" => unimplemented!(),
+                        _ => {}
+                    }
+                }
+                Statement::Conditional(Conditional {
+                    if_: (conditional, if_),
+                    else_,
+                }) => {
+                    let matches = match conditional {
+                        Condition::Mode(mode) => config.edit_mode == mode,
+                        Condition::Term(_) => unimplemented!(),
+                        Condition::Version { op, major, minor } => {
+                            let actual_major: usize = env!("CARGO_PKG_VERSION_MAJOR")
+                                .parse()
+                                .expect("Major version was not a number");
+                            let actual_minor: usize = env!("CARGO_PKG_VERSION_MINOR")
+                                .parse()
+                                .expect("Minor version was not a number");
+                            let minor = minor.unwrap_or(0);
+                            match op {
+                                ComparisonOp::Equals => {
+                                    actual_major == major && actual_minor == minor
+                                }
+                                ComparisonOp::NotEquals => {
+                                    actual_major != major && actual_minor != minor
+                                }
+                                ComparisonOp::LessThan => {
+                                    actual_major < major
+                                        || (actual_major == major && actual_minor < minor)
+                                }
+                                ComparisonOp::LessThanEquals => {
+                                    actual_major < major
+                                        || (actual_major == major && actual_minor <= minor)
+                                }
+                                ComparisonOp::GreaterThan => {
+                                    actual_major > major
+                                        || (actual_major == major && actual_minor > minor)
+                                }
+                                ComparisonOp::GreaterThanEquals => {
+                                    actual_major > major
+                                        || (actual_major == major && actual_minor >= minor)
+                                }
+                            }
+                        }
+                        Condition::Application(application) => unimplemented!(),
+                        Condition::Variable {
+                            variable,
+                            op,
+                            expected_value,
+                        } => {
+                            let actual_value =
+                                environment.get(&variable).map(|s| s.as_ref()).unwrap_or("");
+                            match op {
+                                EqualityOp::Equals => actual_value == &expected_value,
+                                EqualityOp::NotEquals => actual_value != &expected_value,
+                            }
+                        }
+                    };
+                    if matches {
+                        self.statements.extend(if_)
+                    } else {
+                        self.statements.extend(else_.unwrap_or(vec![]))
+                    }
+                }
+                Statement::Keybinding { keyname, function } => unimplemented!(),
+            }
         }
         panic!()
     }
@@ -338,9 +470,7 @@ mod test {
     use super::*;
     use std::io::Cursor;
 
-    #[test]
-    fn parse_simple() {
-        let config = "
+    static SIMPLE_CONFIG: &str = "
 set editing-mode vi
 $if mode=vi
 
@@ -353,15 +483,57 @@ set keymap vi-command
  Control-l: clear-screen
 $endif
 ";
-        let mut parser = Parser {
+
+    #[test]
+    fn parse_simple() {
+        let mut parser = Parser::default();
+
+        let expected = Parser {
             state: ParserState::Toplevel,
-            builder: config::Config::builder(),
-            statements: vec![],
+            statements: vec![
+                Statement::SetVariable {
+                    variable: "editing-mode".into(),
+                    value: Some("vi".into()),
+                },
+                Statement::Conditional(Conditional {
+                    if_: (
+                        Condition::Mode(config::EditMode::Vi),
+                        vec![
+                            Statement::SetVariable {
+                                variable: "keymap".into(),
+                                value: Some("vi-command".into()),
+                            },
+                            Statement::Keybinding {
+                                keyname: "Control-l".into(),
+                                function: " clear-screen".into(),
+                            },
+                            Statement::SetVariable {
+                                variable: "keymap".into(),
+                                value: Some("vi-insert".into()),
+                            },
+                            Statement::Keybinding {
+                                keyname: "Control-l".into(),
+                                function: " clear-screen".into(),
+                            },
+                        ],
+                    ),
+                    else_: None,
+                }),
+            ],
         };
+        parser.parse(Cursor::new(SIMPLE_CONFIG.as_bytes())).unwrap();
+        assert_eq!(parser, expected);
+    }
 
-        parser.parse(Cursor::new(config.as_bytes())).unwrap();
-        eprintln!("{:#?}", parser);
-
-        parser.execute().unwrap();
+    #[test]
+    fn execute_simple() {
+        let mut parser = Parser::default();
+        parser.parse(Cursor::new(SIMPLE_CONFIG.as_bytes())).unwrap();
+        let editor = parser.execute::<()>().unwrap();
+        let bindings = editor.custom_bindings.read().unwrap();
+        assert_eq!(
+            bindings.get(&crate::KeyPress::Ctrl('l')),
+            Some(&crate::Cmd::ClearScreen)
+        );
     }
 }
